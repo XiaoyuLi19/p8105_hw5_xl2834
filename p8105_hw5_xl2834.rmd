@@ -27,6 +27,8 @@ options(
 
 scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
+
+set.seed(1)
 ```
 
 ## Problem 1
@@ -74,5 +76,41 @@ study_result %>%
   ggplot(aes(x = week, y = observation, group = id, color = arm)) + 
   geom_line() +
   facet_grid(. ~ arm)
+```
+
+# Problem 2
+
+```{r}
+sim_mean_sd = function(n = 30, mu = 0, sigma = 5) {
+  
+  sim_data = tibble(
+    x = rnorm(n, mean = mu, sd = sigma),
+  )
+  
+  sim_data %>% 
+    summarize(
+      mu_hat = mean(x),
+      p_value = broom::tidy(t.test(x, mu = 0))$p.value
+    )
+}
+
+
+sim_results = 
+  rerun(50, sim_mean_sd(30, 0, 5)) %>% 
+  bind_rows()
+```
+
+```{r}
+sim = tibble(
+    x = rnorm(n = 30, mean = 0, sd = 5),
+  )
+
+sim %>% 
+    summarize(
+      mu_hat = mean(x),
+      sigma_hat = sd(x)
+    )
+broom::tidy(t.test(rnorm(n = 30, mean = 0, sd = 5), mu = 0))$p.value
+
 ```
 
