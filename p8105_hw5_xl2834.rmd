@@ -39,15 +39,10 @@ file_path =
 
 read_data = function(x) {
   
-  
-  
   study_df = read_csv(x) %>% 
              mutate(arm_id = str_sub(x, start = -10, end = -5))
   
-  
   study_df
-  
-  
 }
 
 output = vector("list", length = 10)
@@ -73,3 +68,11 @@ study_result =
     values_to = "observation") %>% 
   mutate(week = str_sub(week, -1))
 ```
+
+```{r}
+study_result %>% 
+  ggplot(aes(x = week, y = observation, group = id, color = arm)) + 
+  geom_line() +
+  facet_grid(. ~ arm)
+```
+
