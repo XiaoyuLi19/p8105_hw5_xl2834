@@ -9,7 +9,7 @@ output: github_document
 library(tidyverse)
 library(readxl)
 library(ggridges)
-library(p8105.datasets)
+library(patchwork)
 
 knitr::opts_chunk$set(
   fig.width = 8,
@@ -164,17 +164,43 @@ reject_df %>%
 
 The higher the mu value, the higher the proporiton of times that null is rejected. This indicates that a larger effect size can lead to higher power.
 
+
+Make a plot showing the average estimate of μ hat on the y axis and the true value of μ on the x axis.
 ```{r}
-sim = tibble(
-    x = rnorm(n = 30, mean = 0, sd = 5),
-  )
+plot_2 =
+  result_df %>% 
+  group_by(mu) %>% 
+  summarize(avg_mu_hat = mean(mu_hat)) %>% 
+  ggplot(aes(x = mu, y = avg_mu_hat)) +
+  geom_point() +
+  scale_x_discrete(limits = c("1","2","3","4","5","6")) +
+  labs(
+    title = "mean mu hat in groups with different mu")
 
-sim %>% 
-    summarize(
-      mu_hat = mean(x),
-      sigma_hat = sd(x)
+```
+
+Make a second plot (or overlay on the first) the average estimate of μ hat only in samples for which the null was rejected on the y axis and the true value of μ on the x axis.
+```{r}
+plot_3 = 
+  result_df %>% 
+  mutate(
+    reject_null = case_when(
+      p_value < 0.05 ~ "rejected",
+      p_value >= 0.05 ~ "failed to reject"
     )
-broom::tidy(t.test(rnorm(n = 30, mean = 0, sd = 5), mu = 0))$p.value
+  ) %>%
+  filter(reject_null == "rejected") %>% 
+  group_by(mu) %>% 
+  summarize(mean_mu_hat = mean(mu_hat)) %>% 
+  ggplot(aes(x = mu, y = mean_mu_hat)) +
+  geom_point() +
+  scale_x_discrete(limits = c("1","2","3","4","5","6")) +
+  labs(
+    title = "mean mu hat in samples where null was rejected")
+  
+```
 
+```{r}
+plot_2 + plot_3
 ```
 
