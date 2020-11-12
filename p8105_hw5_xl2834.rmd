@@ -140,10 +140,29 @@ result_df =
 Make a plot showing the proportion of times the null was rejected (the power of the test) on the y axis and the true value of μ on the x axis. Describe the association between effect size and power.
 
 ```{r}
+reject_df = 
+  result_df %>% 
+  mutate(
+    reject_null = case_when(
+      p_value < 0.05 ~ "rejected",
+      p_value >= 0.05 ~ "failed to reject"
+    )
+  ) %>% 
+  select(mu, reject_null) %>% 
+  group_by(mu) %>% 
+  summarize(
+    reject_total = sum(reject_null == "rejected")
+  ) %>% 
+  mutate(reject_proportion = reject_total / 50)
+
+reject_df %>% 
+  ggplot(aes(x = mu, y = reject_proportion)) +
+  geom_point() +
+  scale_x_discrete(limits = c("1","2","3","4","5","6"))
 
 ```
 
-
+The higher the mu value, the higher the proporiton of times that null is rejected. This indicates that a larger effect size can lead to higher power.
 
 ```{r}
 sim = tibble(
