@@ -8,7 +8,6 @@ output: github_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(readxl)
-library(ggridges)
 library(patchwork)
 
 knitr::opts_chunk$set(
@@ -34,6 +33,73 @@ set.seed(1)
 ## Problem 1
 
 ```{r}
+homicide_df = 
+  read_csv("./data/homicide-data.csv") %>% 
+  mutate(
+    city_state = str_c(city, state, sep = "_"),
+    resolved = case_when(
+      disposition == "Closed without arrest" ~ "unsolved",
+      disposition == "Open/No arrest"        ~ "unsolved",
+      disposition == "Closed by arrest"      ~ "solved",
+    )
+  ) %>% 
+  select(city_state, resolved) %>% 
+  filter(city_state != "Tulsa_AL")
+```
+
+
+Let's look at this a bit
+
+```{r}
+aggregate_df = 
+  homicide_df %>% 
+  group_by(city_state) %>% 
+  summarize(
+    hom_total = n(),
+    hom_unsolved = sum(resolved == "unsolved")
+  )
+```
+
+Can I do a prop test for a single city?
+
+```{r}
+prop.test(
+  aggregate_df %>% filter(city_state == "Baltimore_MD") %>% pull(hom_unsolved), 
+  aggregate_df %>% filter(city_state == "Baltimore_MD") %>% pull(hom_total)) %>% 
+  broom::tidy()
+```
+
+Try to iterate ........
+
+```{r}
+results_df = 
+  aggregate_df %>% 
+  mutate(
+    prop_tests = map2(.x = hom_unsolved, .y = hom_total, ~prop.test(x = .x, n = .y)),
+    tidy_tests = map(.x = prop_tests, ~broom::tidy(.x))
+  ) %>% 
+  select(-prop_tests) %>% 
+  unnest(tidy_tests) %>% 
+  select(city_state, estimate, conf.low, conf.high)
+```
+
+
+
+```{r}
+results_df %>% 
+  mutate(city_state = fct_reorder(city_state, estimate)) %>% 
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+
+
+
+## Problem 2
+
+```{r}
 file_path = 
   list.files(path = "./data/hw5_data/data", full.names = TRUE)
 
@@ -47,10 +113,10 @@ read_data = function(x) {
   study_df
 }
 
-output = vector("list", length = 10)
+output_1 = vector("list", length = 10)
 
 for (i in 1:10) {
-  output[[i]] = read_data(file_path[[i]])
+  output_1[[i]] = read_data(file_path[[i]])
 }
 
 ```
@@ -59,10 +125,10 @@ for (i in 1:10) {
 use map
 
 ```{r}
-output = map(file_path, read_data)
+output_1 = map(file_path, read_data)
 
 study_result = 
-  bind_rows(output) %>% 
+  bind_rows(output_1) %>% 
   separate(arm_id, into = c("arm","id"), sep = "_") %>% 
   pivot_longer(
     week_1:week_8,
@@ -78,7 +144,9 @@ study_result %>%
   facet_grid(. ~ arm)
 ```
 
-# Problem 2
+In the control group, the observation value did not change much across weeks. In the experiment group, the observation values increase over the weeks.
+
+# Problem 3
 
 ```{r}
 sim_mean_p = function(n = 30, mu = 0, sigma = 5) {
@@ -96,27 +164,28 @@ sim_mean_p = function(n = 30, mu = 0, sigma = 5) {
 
 
 sim_results = 
-  rerun(50, sim_mean_p(30, 0, 5)) %>% 
+  rerun(5000, sim_mean_p(30, 0, 5)) %>% 
   bind_rows()
 ```
 
-Repeat for mu = 1 to 6
+Repeat for mu = 0 to 6
 
 ```{r}
 mu_list = 
   list(
-    "mu_1"  = 1, 
-    "mu_2"  = 2, 
-    "mu_3" = 3, 
-    "mu_4" = 4,
-    "mu_5" = 5,
-    "mu_6" = 6
+    "mu_1" = 0,
+    "mu_2" = 1, 
+    "mu_3" = 2, 
+    "mu_4" = 3, 
+    "mu_5" = 4,
+    "mu_6" = 5,
+    "mu_7" = 6
     )
 
-output = vector("list", length = 6)
+output = vector("list", length = 7)
 
-for (i in 1:6) {
-  output[[i]] = rerun(50, sim_mean_p(mu = mu_list[[i]])) %>% 
+for (i in 1:7) {
+  output[[i]] = rerun(5000, sim_mean_p(mu = mu_list[[i]])) %>% 
     bind_rows
 }
 ```
@@ -126,10 +195,10 @@ Build a dataset
 ```{r}
 result_df =
   tibble(
-  mu = c(1, 2, 3, 4, 5, 6)
+  mu = c(0, 1, 2, 3, 4, 5, 6)
 ) %>% 
   mutate(
-    output_lists = map(.x = mu, ~ rerun(50, sim_mean_p(mu = .x))),
+    output_lists = map(.x = mu, ~ rerun(5000, sim_mean_p(mu = .x))),
     estimate_df = map(output_lists, bind_rows)
   ) %>% 
   select(-output_lists) %>% 
@@ -153,12 +222,11 @@ reject_df =
   summarize(
     reject_total = sum(reject_null == "rejected")
   ) %>% 
-  mutate(reject_proportion = reject_total / 50)
+  mutate(reject_proportion = reject_total / 5000)
 
 reject_df %>% 
   ggplot(aes(x = mu, y = reject_proportion)) +
-  geom_point() +
-  scale_x_discrete(limits = c("1","2","3","4","5","6"))
+  geom_point() 
 
 ```
 
@@ -173,7 +241,7 @@ plot_2 =
   summarize(avg_mu_hat = mean(mu_hat)) %>% 
   ggplot(aes(x = mu, y = avg_mu_hat)) +
   geom_point() +
-  scale_x_discrete(limits = c("1","2","3","4","5","6")) +
+  
   labs(
     title = "mean mu hat in groups with different mu")
 
@@ -194,7 +262,6 @@ plot_3 =
   summarize(mean_mu_hat = mean(mu_hat)) %>% 
   ggplot(aes(x = mu, y = mean_mu_hat)) +
   geom_point() +
-  scale_x_discrete(limits = c("1","2","3","4","5","6")) +
   labs(
     title = "mean mu hat in samples where null was rejected")
   
@@ -204,3 +271,5 @@ plot_3 =
 plot_2 + plot_3
 ```
 
+With the increase of μ, the effect size increases, and power increases.
+The sample average of μ hat across tests for which the null is rejected approximately equal to the true value of μ when μ = 0, 4, 5, 6, and is not approximately equal when μ = 1, 2, 3. When μ = 0, the sample with rejected null lie in both tails of the distribution (both positive side and negative side), so the average of the sample is close to 0. When μ = 1, 2, 3, the sample with rejected null lie primarily in the upper tail, so the average is larger than the true value of μ. When μ = 4,5,6, almost all samples have rejected null, so the average is close to true value of μ. 
